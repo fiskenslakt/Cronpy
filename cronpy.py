@@ -13,32 +13,44 @@ class InvalidOptionError(Exception):
 
 class CronJob:
     def __init__(self, user=None):
+        """Initializes user and fetches cron data."""
         self.user = user
         if self.user:
             self.cron = CronTab(user=self.user)
         else:
             self.cron = CronTab(user=True)
+        self.update_cron_data()
 
+    def update_cron_data(self):
         self.activeJobs = dict(enumerate([job for job in self.cron if job.is_enabled()], 1))
         self.inactiveJobs = dict(enumerate([job for job in self.cron if not job.is_enabled()], 1))
-
-        self.schedule = OrderedDict([('m','*'),('h','*'),('dom','*'),('mon','*'),('dow','*')])
+        self.jobCount = len(self.activeJobs) + len(self.inactiveJobs)
+        self.schedule = OrderedDict([('m', None), ('h', None), ('dom', None), ('mon', None), ('dow', None)])
 
     def list_jobs(self):
         """Display all active and inactive jobs in a list format."""
         print 'Active Jobs:'
-        for pos, job in sorted(self.activeJobs.items()):
-            print '{}. {}'.format(pos, job)
+        if self.activeJobs:
+            for pos, job in sorted(self.activeJobs.items()):
+                print '{}. {}'.format(pos, job)
+        else:
+            print 'no active jobs'
 
         print '\nInactive Jobs:'
-        for pos, job in sorted(self.inactiveJobs.items()):
-            print '{}. {}'.format(pos, job)
+        if self.inactiveJobs:
+            for pos, job in sorted(self.inactiveJobs.items()):
+                print '{}. {}'.format(pos, job)
+        else:
+            print 'no inactive jobs'
 
         print '{}{}{}'.format('\n', '*'*60, '\n')
 
     def write_changes_to_cron(self):
-        """Writes all changes to the user's crontab file"""
+        """Writes all changes to the user's crontab file
+        and then updates the user's cron data.
+        """
         self.cron.write()
+        self.update_cron_data()
 
     def add_job(self, command, comment):
         """Adds a job to the user's crontab if the job is valid"""
@@ -49,8 +61,17 @@ class CronJob:
         else:
             print 'Error: Failed to add job, invalid syntax\n'
 
+    def delete_job(self):
+        pass
+
+    def toggle_comment(self):
+        pass
+
+    def comfirm_action(self):
+        pass
+
     def create_schedule(self):
-        scheduleType = raw_input('Specify time restriction:\n1. Specific Date\n2. Recurring task\n>')
+        scheduleType = raw_input('Specify time restriction:\n1. Specific Date\n2. Recurring task\n> ')
         if scheduleType == '1':
             self.schedule['dow'] = '*'
             self.schedule['mon'] = raw_input('Month (1-12): ')
@@ -75,7 +96,7 @@ You can specify which days of the week in the following ways:\n\
  - A list of days (eg. 1,3,5 runs on mon,wed,fri)\n\
  - A range with a specified interval (eg. 0-6/2 is every 2 days, 0-4/2 is every 2 days from sun-thursday)\n\
  - Lastly if it's only one day of the week, just enter the number corresponding with that day"
-                    self.schedule["dow"] = raw_input(">")
+                    self.schedule['dow'] = raw_input('> ')
                     break
                 else:
                     'Please answer y or n'
@@ -93,7 +114,7 @@ You can specify which months in the following ways:\n\
  - A list of months (eg. 1,3,5,8,11)\n\
  - A range with a specified interval (eg. 1-12/2 is every 2 months, 1-6/2 is every 2 months for the first 6 months)\n\
  - Lastly if it's only one month, just enter the number corresponding with that month"
-                    self.schedule['mon'] = raw_input('>')
+                    self.schedule['mon'] = raw_input('> ')
                     break
                 else:
                     print 'Please answer y or n\n'
@@ -110,7 +131,7 @@ You can specify which days in the following ways:\n\
  - A list of days (eg. 1,3,5,8,13,21)\n\
  - A range with a specified interval (eg. 1-31/2 is every 2 days, 1-10/2 is every 2 days for the first 10 days)\n\
  - Lastly if it's only one day, just enter the number corresponding with that day"
-                    self.schedule['dom'] = raw_input('>')
+                    self.schedule['dom'] = raw_input('> ')
                     break
                 else:
                     'Please answer y or n\n'
@@ -127,7 +148,7 @@ You can specify which hours in the following ways:\n\
  - A list of hours (eg. 1,3,5,8,13,21)\n\
  - A range with a specified interval (eg. 0-23/2 is every 2 hours, 0-10/2 is every 2 hours for the first 10 hours)\n\
  - Lastly if it's a specific hour of the day, just enter the number corresponding with that hour"
-                    self.schedule['h'] = raw_input('>')
+                    self.schedule['h'] = raw_input('> ')
                     break
                 else:
                     'Please answer y or n'
@@ -155,7 +176,8 @@ def get_user_action():
     input from the user to determine what
     action to execute.
     """
-    print '1. Add job\n\
+    print 'Menu:\n\
+1. Add job\n\
 2. Remove job\n\
 3. Modify job\n\
 \nType (q)uit to exit\n'
@@ -165,13 +187,15 @@ def get_user_action():
 
 user = CronJob()
 while True:
+    print 'User: {}'.format(user.cron.user)
+    print 'Job Count: {}'.format(user.jobCount)
     user.list_jobs()
     userAction = get_user_action()
 
     try:
         if userAction.lower() in ('q', 'quit', 'exit'):
             raise SystemExit
-        elif userAction.lower() in ('1', 'add'):
+        elif userAction.lower() in ('1', 'add', 'a'):
             jobCommand = raw_input('Command for new job: ')
             user.create_schedule()
             jobHasComment = raw_input('\nDo you want to add a comment to the cronjob? [y/N]: ')
@@ -186,10 +210,17 @@ while True:
                     print 'Please type y or n\n'
             user.add_job(jobCommand, jobComment)
 
-        elif userAction.lower() in ('2', 'remove', 'delete', 'del'):
-            pass
+        elif userAction.lower() in ('2', 'remove', 'delete', 'del', 'r'):
+            if user.jobCount == 0:
+                print 'There are no jobs'
+                raise InvalidOptionError
+            userAction = raw_input('1. Select command\n2. Search for command\n> ')
+            if userAction == '1':
+                print 'Type the number corresponding with the job you want to delete:'
+                jobToRemove = raw_input('> ')
+            
 
-        elif userAction.lower() in ('3', 'modify', 'mod'):
+        elif userAction.lower() in ('3', 'modify', 'mod', 'm'):
             pass
 
         else:
