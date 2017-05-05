@@ -52,6 +52,7 @@ class CronJob:
     def create_schedule(self):
         scheduleType = raw_input('Specify time restriction:\n1. Specific Date\n2. Recurring task\n>')
         if scheduleType == '1':
+            self.schedule['dow'] = '*'
             self.schedule['mon'] = raw_input('Month (1-12): ')
             self.schedule['dom'] = raw_input('Day of Month (1-31): ')
             time = raw_input('Time in 24hr format (HH:MM): ')
@@ -172,6 +173,7 @@ while True:
             raise SystemExit
         elif userAction.lower() in ('1', 'add'):
             jobCommand = raw_input('Command for new job: ')
+            user.create_schedule()
             jobHasComment = raw_input('\nDo you want to add a comment to the cronjob? [y/N]: ')
             while True:
                 if jobHasComment.lower() == 'y':
