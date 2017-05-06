@@ -69,7 +69,6 @@ class CronJob:
             list(self.cron.find_command(searchTerm)) +
             list(self.cron.find_comment(searchTerm))
         )
-            # list(self.cron.find_time(searchTerm))
         return dict([(str(pos),job) for pos, job in enumerate(foundJobs, 1)])
 
     def add_job(self, command, comment):
@@ -85,8 +84,22 @@ class CronJob:
         self.cron.remove(job)
         self.write_changes_to_cron()
 
-    def toggle_comment(self):
-        pass
+    def modify_job(self, action, job):
+        if action == '1':       # enable/disable
+            if job.is_enabled():
+                job.enable(False)
+            else:
+                job.enable()
+        elif action == '2':     # edit command
+            newCommand = raw_input('New command for job: ')
+            job.set_command(newCommand)
+        elif action == '3':     # edit schedule
+            self.create_schedule()
+            job.setall(' '.join(self.schedule.values()))
+        elif action == '4':     # edit comment
+            print 'Note: Type nothing to remove a comment'
+            newComment = raw_input('New comment for job: ')
+            job.set_comment(newComment)
 
     def confirm_action(self, action, job):
         """Forces user to confirm action before it's executed."""
@@ -95,6 +108,8 @@ class CronJob:
             answer = raw_input('[y/n]: ')
             if answer.lower() in ('y', 'n'):
                 break
+            else:
+                print 'You must answer y or n ',
         return True if answer.lower() == 'y' else False
 
     def create_schedule(self):
@@ -198,16 +213,60 @@ You can specify which minutes in the following ways:\n\
                     'Please answer y or n\n'
 
 
-def get_user_action():
+def find_job_menu(user):
+    """Provides user with menu tree to select
+    job for executing an action on and then
+    returns the job object.
+    """
+    userAction = raw_input('1. Select job\n2. Search for job\n> ')
+    if userAction == '1':
+        jobState = raw_input('Is the job (1) active or (0) inactive?\n> ')
+        if jobState not in ('1', '0'):
+            raise InvalidOptionError
+        job = raw_input('Type the number corresponding with the job you want:\n> ')
+        return user.select_job(job, jobState)
+    elif userAction == '2':
+        print 'Type the command or comment of the job'
+        searchTerm = raw_input('Search: ')
+        jobs = user.search_job(searchTerm)
+        if jobs:
+            print 'Search query found {} job(s):'.format(len(jobs))
+            if len(jobs) > 1:
+                for pos, job in sorted(jobs.items(), key=lambda (pos,job): int(pos)):
+                    print '{}. {}'.format(pos, job)
+                jobNumber = raw_input("Type the number corresponding with the job you want\n> ")
+            else:
+                print '1. {}'.format(jobs['1'])
+                jobNumber = '1'
+
+            if jobNumber in jobs.keys():
+                return jobs[jobNumber]
+            else:
+                raise InvalidOptionError
+        else:
+            print 'No jobs found for query: "{}"'.format(searchTerm)
+    else:
+        raise InvalidOptionError
+
+def get_user_action(menu):
     """Displays menu options and then takes
     input from the user to determine what
     action to execute.
     """
-    print 'Menu:\n\
+    if menu == 'main':
+        print 'Menu:\n\
 1. Add job\n\
 2. Remove job\n\
 3. Modify job\n\
 \nType (q)uit to exit\n'
+    elif menu == 'modify':
+        print 'Options:\n\
+1. Enable/Disable job\n\
+2. Edit command for job\n\
+3. Edit schedule for job\n\
+4. Edit comment for job\n\
+\nOtherwise type \'c\' to cancel'
+
     action = raw_input('> ')
     return action
     
@@ -217,11 +276,13 @@ while True:
     print 'User: {}'.format(user.cron.user)
     print 'Job Count: {}'.format(user.jobCount)
     user.list_jobs()
-    userAction = get_user_action()
-
+    
     try:
+        userAction = get_user_action('main')
+
         if userAction.lower() in ('q', 'quit', 'exit'):
             raise SystemExit
+
         elif userAction.lower() in ('1', 'add', 'a'):
             jobCommand = raw_input('Command for new job: ')
             user.create_schedule()
@@ -241,42 +302,34 @@ while True:
             if user.jobCount == 0:
                 print 'There are no jobs'
                 raise InvalidOptionError
-            userAction = raw_input('1. Select job\n2. Search for job\n> ')
-            if userAction == '1':
-                jobState = raw_input('Is the job (1) active or (0) inactive?\n> ')
-                if jobState not in ('1', '0'):
-                    raise InvalidOptionError
-                jobToRemove = raw_input('Type the number corresponding with the job you want to delete:\n> ')
-                job = user.select_job(jobToRemove, jobState)
-                if user.confirm_action('delete', job):
-                    user.delete_job(job)
-            elif userAction == '2':
-                print 'Type the command or comment of the job you want to delete'
-                searchTerm = raw_input('Search: ')
-                jobs = user.search_job(searchTerm)
-                if jobs:
-                    print 'Search query found {} job(s):'.format(len(jobs))
-                    for pos, job in sorted(jobs.items(), key=lambda (pos,job): int(pos)):
-                        print '{}. {}'.format(pos, job)
-                    jobToRemove = raw_input('Type the number corresponding with the job you want to delete\nOtherwise type \'c\' to cancel\n> ')
-                    if jobToRemove in jobs.keys():
-                        job = jobs[jobToRemove]
-                        if user.confirm_action('delete', job):
-                            user.delete_job(job)
-                    elif jobToRemove.lower() in ('c', 'cancel'):
-                        pass
-                    else:
-                        raise InvalidOptionError
-                else:
-                    print 'No jobs found for query: "{}"'.format(searchTerm)
-            else:
-                raise InvalidOptionError
+
+            job = find_job_menu(user)
+            if user.confirm_action('delete', job):
+                user.delete_job(job)
 
         elif userAction.lower() in ('3', 'modify', 'mod', 'm'):
-            pass
+            if user.jobCount == 0:
+                print 'There are no jobs'
+                raise InvalidOptionError
+            userAction = get_user_action('modify')
+            if userAction in ('1', '2', '3', '4'):
+                job = find_job_menu(user)
+                if job:
+                    user.modify_job(userAction, job)
+                    user.write_changes_to_cron()
+                else:
+                    raise InvalidOptionError
+            elif userAction in ('c', 'cancel'):
+                pass
+            else:
+                raise InvalidOptionError
 
         else:
             raise InvalidOptionError
     except InvalidOptionError:
         print 'Invalid option\n'
         raw_input('Press [Enter] to continue')
+
+    except KeyboardInterrupt:   # if user hits keyboard interrupt key, exit program gracefully
+        print
+        raise SystemExit
