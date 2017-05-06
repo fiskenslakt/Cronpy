@@ -22,8 +22,9 @@ class CronJob:
         self.update_cron_data()
 
     def update_cron_data(self):
-        self.activeJobs = dict(enumerate([job for job in self.cron if job.is_enabled()], 1))
-        self.inactiveJobs = dict(enumerate([job for job in self.cron if not job.is_enabled()], 1))
+        """Update user instance with current cron data and resets schedule."""
+        self.activeJobs = dict([(str(pos),job) for pos, job in enumerate(self.cron,1) if job.is_enabled()])
+        self.inactiveJobs = dict([(str(pos),job) for pos, job in enumerate(self.cron,1) if not job.is_enabled()])
         self.jobCount = len(self.activeJobs) + len(self.inactiveJobs)
         self.schedule = OrderedDict([('m', None), ('h', None), ('dom', None), ('mon', None), ('dow', None)])
 
@@ -31,19 +32,19 @@ class CronJob:
         """Display all active and inactive jobs in a list format."""
         print 'Active Jobs:'
         if self.activeJobs:
-            for pos, job in sorted(self.activeJobs.items()):
+            for pos, job in sorted(self.activeJobs.items(), key=lambda (pos,job): int(pos)):
                 print '{}. {}'.format(pos, job)
         else:
             print 'no active jobs'
 
         print '\nInactive Jobs:'
         if self.inactiveJobs:
-            for pos, job in sorted(self.inactiveJobs.items()):
+            for pos, job in sorted(self.inactiveJobs.items(), key=lambda (pos,job): int(pos)):
                 print '{}. {}'.format(pos, job)
         else:
             print 'no inactive jobs'
 
-        print '{}{}{}'.format('\n', '*'*60, '\n')
+        print '{}{}{}'.format('\n', '-'*60, '\n')
 
     def write_changes_to_cron(self):
         """Writes all changes to the user's crontab file
@@ -51,6 +52,21 @@ class CronJob:
         """
         self.cron.write()
         self.update_cron_data()
+
+    def select_job(self, jobNumber, jobState):
+        """Returns a specific job object for executing an action on."""
+        if jobState == '1':
+            return self.activeJobs.get(jobNumber)
+        else:
+            return self.inactiveJobs.get(jobNumber)
+
+    def search_job(self, searchTerm):
+        foundJobs = (
+            list(self.cron.find_command(searchTerm)) +
+            list(self.cron.find_comment(searchTerm))
+        )
+            # list(self.cron.find_time(searchTerm))
+        return dict([(str(pos),job) for pos, job in enumerate(foundJobs, 1)])
 
     def add_job(self, command, comment):
         """Adds a job to the user's crontab if the job is valid"""
@@ -67,8 +83,14 @@ class CronJob:
     def toggle_comment(self):
         pass
 
-    def comfirm_action(self):
-        pass
+    def confirm_action(self, action, job):
+        """Forces user to confirm action before it's executed."""
+        print 'Are you sure you want to {} the following job:\n({})'.format(action, job),
+        while True:
+            answer = raw_input('[y/n]: ')
+            if answer.lower() in ('y', 'n'):
+                break
+        return True if answer.lower() == 'y' else False
 
     def create_schedule(self):
         scheduleType = raw_input('Specify time restriction:\n1. Specific Date\n2. Recurring task\n> ')
@@ -214,11 +236,32 @@ while True:
             if user.jobCount == 0:
                 print 'There are no jobs'
                 raise InvalidOptionError
-            userAction = raw_input('1. Select command\n2. Search for command\n> ')
+            userAction = raw_input('1. Select job\n2. Search for job\n> ')
             if userAction == '1':
-                print 'Type the number corresponding with the job you want to delete:'
-                jobToRemove = raw_input('> ')
-            
+                jobState = raw_input('Is the job (1) active or (0) inactive?\n> ')
+                if jobState not in ('1', '0'):
+                    raise InvalidOptionError
+                jobToRemove = raw_input('Type the number corresponding with the job you want to delete:\n> ')
+                job = user.select_job(jobToRemove, jobState)
+                if user.confirm_action('delete', job):
+                    user.delete_job(job)
+            elif userAction == '2':
+                print 'Type the schedule, command, or comment of the job you want to delete'
+                searchTerm = raw_input('Search: ')
+                jobs = user.search_job(searchTerm)
+                if jobs:
+                    print 'Search query found {} job(s):'.format(len(jobs))
+                    for pos, job in sorted(jobs.items(), key=lambda (pos,job): int(pos)):
+                        print '{}. {}'.format(pos, job)
+                    jobToRemove = raw_input('Type the number corresponding with the job you want to delete:\n> ')
+                    if jobToRemove in jobs.keys():
+                        job = jobs[jobToRemove]
+                        if user.confirm_action('delete', job):
+                            user.delete_job(job)
+                else:
+                    print 'No jobs found for query: "{}"'.format(searchTerm)
+            else:
+                raise InvalidOptionError
 
         elif userAction.lower() in ('3', 'modify', 'mod', 'm'):
             pass
