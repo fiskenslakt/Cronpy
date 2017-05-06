@@ -23,8 +23,12 @@ class CronJob:
 
     def update_cron_data(self):
         """Update user instance with current cron data and resets schedule."""
-        self.activeJobs = dict([(str(pos),job) for pos, job in enumerate(self.cron,1) if job.is_enabled()])
-        self.inactiveJobs = dict([(str(pos),job) for pos, job in enumerate(self.cron,1) if not job.is_enabled()])
+        activeJobs = enumerate([job for job in self.cron if job.is_enabled()], 1) # Create list of jobs if enabled and number them
+        self.activeJobs = dict(map(lambda (pos, job): (str(pos),job), activeJobs)) # Convert numbers to strings and converts list to dict
+
+        inactiveJobs = enumerate([job for job in self.cron if not job.is_enabled()], 1)
+        self.inactiveJobs = dict(map(lambda (pos, job): (str(pos),job), inactiveJobs))
+
         self.jobCount = len(self.activeJobs) + len(self.inactiveJobs)
         self.schedule = OrderedDict([('m', None), ('h', None), ('dom', None), ('mon', None), ('dow', None)])
 
@@ -77,8 +81,9 @@ class CronJob:
         else:
             print 'Error: Failed to add job, invalid syntax\n'
 
-    def delete_job(self):
-        pass
+    def delete_job(self, job):
+        self.cron.remove(job)
+        self.write_changes_to_cron()
 
     def toggle_comment(self):
         pass
@@ -246,18 +251,22 @@ while True:
                 if user.confirm_action('delete', job):
                     user.delete_job(job)
             elif userAction == '2':
-                print 'Type the schedule, command, or comment of the job you want to delete'
+                print 'Type the command or comment of the job you want to delete'
                 searchTerm = raw_input('Search: ')
                 jobs = user.search_job(searchTerm)
                 if jobs:
                     print 'Search query found {} job(s):'.format(len(jobs))
                     for pos, job in sorted(jobs.items(), key=lambda (pos,job): int(pos)):
                         print '{}. {}'.format(pos, job)
-                    jobToRemove = raw_input('Type the number corresponding with the job you want to delete:\n> ')
+                    jobToRemove = raw_input('Type the number corresponding with the job you want to delete\nOtherwise type \'c\' to cancel\n> ')
                     if jobToRemove in jobs.keys():
                         job = jobs[jobToRemove]
                         if user.confirm_action('delete', job):
                             user.delete_job(job)
+                    elif jobToRemove.lower() in ('c', 'cancel'):
+                        pass
+                    else:
+                        raise InvalidOptionError
                 else:
                     print 'No jobs found for query: "{}"'.format(searchTerm)
             else:
