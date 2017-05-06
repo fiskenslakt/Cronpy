@@ -1,7 +1,5 @@
 #!/usr/bin/env python
 
-import sys
-
 from collections import OrderedDict
 
 from crontab import CronTab
@@ -271,7 +269,7 @@ def get_user_action(menu):
     return action
     
 
-user = CronJob()
+user = CronJob(user=True)
 while True:
     print 'User: {}'.format(user.cron.user)
     print 'Job Count: {}'.format(user.jobCount)
