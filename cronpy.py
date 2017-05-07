@@ -76,7 +76,10 @@ class CronJob:
     def add_job(self, command, comment):
         """Adds a job to the user's crontab if the job is valid."""
         job = self.cron.new(command=command, comment=comment)
-        job.setall(' '.join(self.schedule.values()))
+        if isinstance(self.schedule, str): # self.schedule is one of the special cases
+            job.setall(self.schedule)
+        else:
+            job.setall(' '.join(self.schedule.values()))
         if job.is_valid():
             self.write_changes_to_cron()
         else:
@@ -99,7 +102,10 @@ class CronJob:
             job.set_command(newCommand)
         elif action == '3':     # edit schedule
             self.create_schedule()
-            job.setall(' '.join(self.schedule.values()))
+            if isinstance(self.schedule, str): # self.schedule is one of the special cases
+                job.setall(self.schedule)
+            else:
+                job.setall(' '.join(self.schedule.values()))
         elif action == '4':     # edit comment
             print 'Note: Type nothing to remove a comment'
             newComment = raw_input('New comment for job: ')
@@ -120,7 +126,7 @@ class CronJob:
         """Creates a schedule to be used for the creation
         or modification of a job in the user's crontab.
         """
-        scheduleType = raw_input('Specify time restriction:\n1. Specific Date\n2. Recurring task\n> ')
+        scheduleType = raw_input('Options:\n1. Specific Date\n2. Recurring task\n> ')
         if scheduleType == '1':
             self.schedule['dow'] = '*'
             self.schedule['mon'] = raw_input('Month (1-12): ')
@@ -131,6 +137,31 @@ class CronJob:
             self.schedule['m'] = minute
 
         elif scheduleType == '2':
+            print 'Options:\n\
+1. Run every boot\n\
+2. Run hourly\n\
+3. Run daily\n\
+4. Run weekly\n\
+5. Run monthly\n\
+6. Run yearly\n\
+7. Custom schedule\n'
+            userOption = raw_input('> ')
+            if userOption in map(str, range(1,7)): # options 1-6
+                specialCases = {
+                    '1': '@reboot',
+                    '2': '@hourly',
+                    '3': '@daily',
+                    '4': '@weekly',
+                    '5': '@monthly',
+                    '6': '@yearly',
+                }
+                self.schedule = specialCases[userOption]
+                return
+            elif userOption == '7':
+                pass
+            else:
+                raise InvalidOptionError
+
             print 'Do you want this cronjob to run:'
 
             while True:
@@ -324,7 +355,27 @@ while True:
                 job = find_job_menu(user)
                 if job:
                     user.modify_job(userAction, job)
-                    user.write_changes_to_cron()
+                    if userAction == '1' and job.is_enabled(): # job was just enabled but changes haven't been written to crontab yet
+                        if user.confirm_action('enable', job):
+                            user.write_changes_to_cron()
+                    elif userAction == '1' and not job.is_enabled(): # job was just disabled but changes haven't been written to crontab yet
+                        if user.confirm_action('disable', job):
+                            user.write_changes_to_cron()
+                    elif userAction == '2':
+                        if user.confirm_action('save the command for', job):
+                            user.write_changes_to_cron()
+                    elif userAction == '3':
+                        if user.confirm_action('save the schedule for', job):
+                            user.write_changes_to_cron()
+                    # elif userAction == '4':
+                    #     if job.comment:
+                    #         if user.confirm_action('save the comment for', job):
+                    #             user.write_changes_to_cron()
+                    #     else:
+                    #         if user.confirm_action('remove the comment for', job):
+                    #             user.write_changes_to_cron()
+                    user.update_cron_data()
+
                 else:
                     raise InvalidOptionError
             elif userAction in ('c', 'cancel'):
