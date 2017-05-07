@@ -63,6 +63,10 @@ class CronJob:
             return self.inactiveJobs.get(jobNumber)
 
     def search_job(self, searchTerm):
+        """Returns a numbered list of jobs based on a search query.
+        Will search by command and by comment and combine results
+        into a single list.
+        """
         foundJobs = (
             list(self.cron.find_command(searchTerm)) +
             list(self.cron.find_comment(searchTerm))
@@ -70,7 +74,7 @@ class CronJob:
         return dict([(str(pos),job) for pos, job in enumerate(foundJobs, 1)])
 
     def add_job(self, command, comment):
-        """Adds a job to the user's crontab if the job is valid"""
+        """Adds a job to the user's crontab if the job is valid."""
         job = self.cron.new(command=command, comment=comment)
         job.setall(' '.join(self.schedule.values()))
         if job.is_valid():
@@ -79,10 +83,12 @@ class CronJob:
             print 'Error: Failed to add job, invalid syntax\n'
 
     def delete_job(self, job):
+        """Removes a single job from the user's crontab."""
         self.cron.remove(job)
         self.write_changes_to_cron()
 
     def modify_job(self, action, job):
+        """Modifies a job in the users's crontab."""
         if action == '1':       # enable/disable
             if job.is_enabled():
                 job.enable(False)
@@ -111,6 +117,9 @@ class CronJob:
         return True if answer.lower() == 'y' else False
 
     def create_schedule(self):
+        """Creates a schedule to be used for the creation
+        or modification of a job in the user's crontab.
+        """
         scheduleType = raw_input('Specify time restriction:\n1. Specific Date\n2. Recurring task\n> ')
         if scheduleType == '1':
             self.schedule['dow'] = '*'
@@ -269,8 +278,9 @@ def get_user_action(menu):
     return action
     
 
-user = CronJob(user=True)
+user = CronJob(user=True)       # Open's the default users's crontab for modification
 while True:
+    # Display user's crontab data (current user, number of jobs, job list)
     print 'User: {}'.format(user.cron.user)
     print 'Job Count: {}'.format(user.jobCount)
     user.list_jobs()
