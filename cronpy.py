@@ -10,13 +10,9 @@ class InvalidOptionError(Exception):
 
 
 class CronJob:
-    def __init__(self, user=None):
+    def __init__(self):
         """Initializes user and fetches cron data."""
-        self.user = user
-        if self.user:
-            self.cron = CronTab(user=self.user)
-        else:
-            self.cron = CronTab(user=True)
+        self.cron = CronTab(user=True)
         self.update_cron_data()
 
     def update_cron_data(self):
@@ -309,7 +305,7 @@ def get_user_action(menu):
     return action
     
 
-user = CronJob(user=True)       # Open's the default users's crontab for modification
+user = CronJob()       # Open's the default users's crontab for modification
 while True:
     # Display user's crontab data (current user, number of jobs, job list)
     print 'User: {}'.format(user.cron.user)
@@ -367,14 +363,14 @@ while True:
                     elif userAction == '3':
                         if user.confirm_action('save the schedule for', job):
                             user.write_changes_to_cron()
-                    # elif userAction == '4':
-                    #     if job.comment:
-                    #         if user.confirm_action('save the comment for', job):
-                    #             user.write_changes_to_cron()
-                    #     else:
-                    #         if user.confirm_action('remove the comment for', job):
-                    #             user.write_changes_to_cron()
-                    user.update_cron_data()
+                    elif userAction == '4':
+                        if job.comment:
+                            if user.confirm_action('save the comment for', job):
+                                user.write_changes_to_cron()
+                        else:
+                            if user.confirm_action('remove the comment for', job):
+                                user.write_changes_to_cron()
+                    user.__init__()
 
                 else:
                     raise InvalidOptionError
